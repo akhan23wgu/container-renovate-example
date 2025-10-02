@@ -1,0 +1,229 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "group:allNonMajor"
+  ],
+   //  Always open vulnerability-fixing pull requests immediately
+  "timezone": "America/Boise",
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": "at any time"
+  },
+   // Avoid updating to unstable versions
+  "ignoreUnstable": true,
+  "stabilityDays": 7,
+  "rebaseWhen": "auto",
+  "rollbackPrs": false,
+  "lockFileMaintenance": {
+    "enabled": false
+  },
+  "separateMajorMinor": true,
+  "helm-values": {
+    "enabled": true,
+    "pinDigests": true,
+    "versioning": "loose",
+    "fileMatch": ["^*./?values.ya?ml"]
+  },
+  "hostRules": [
+    {
+      "hostType": "docker",
+      "keepalive": true,
+      "username": "akhan23",
+      "password": "{{ secrets.DOCKER_TOKEN }}",
+      "maxRequestsPerSecond": 20
+    },
+    {
+      "matchHost": "api.github.com",
+      "concurrentRequestLimit": 15,
+      "prHourlyLimit": 0
+    },
+    {
+      "hostType": "docker",
+      "matchHost": "ghcr.io",
+      "username": "{{ secrets.GHCRIO_COM_USERNAME }}",
+      "password": "{{ secrets.GHCRIO_COM_PASSWORD }}",
+      "maxRequestsPerSecond": 20
+
+    },
+  ],
+  "packageRules": [
+    {
+      "description": "Enables docker major update type, and enables digest pinning.",
+      "datasources": ["docker"],
+      "updateTypes": ["major"],
+      "enabled": true,
+      "pinDigests": true
+    },
+    {
+      "description": "Group dependencies from values.yaml files",
+      "matchFileNames": ["(^|/)values\\.ya?ml$"],
+      "groupName": "All values.yaml Docker changes",
+      "matchDatasources": ["docker"],
+      "versioning": "loose",
+    },
+    {
+      "description": "Automerge helm and docker datasources, except hass, zwave-js-ui and nexus.",
+      "automerge": true,
+      "matchDatasources": ["helm","docker"],
+      "matchPackageNames": ["!/homeassistant/", "!/zwave-js-ui/", "!/nexus/"]
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Helm chart manager custom lookup",
+      "customType": "regex",
+      "fileMatch": ["^*./?values.ya?ml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+          "\\s*helmchart_url\\s*:\\s*.(?<registryUrl>.+).",
+          "\\s*chart\\s*:\\s*.(?<depName>.+).",
+          "\\s*version\\s*:\\s*.(0\\.2\\.2).|\\s*version\\s*:\\s*.(?<currentValue>v?.*\\d)"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "description": "Scans for generic major.minor.patch docker image updates",
+      "customType": "regex",
+      "fileMatch": ["^*./?values.ya?ml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion:\\s?\"(?<registryUrl>\\w+\.io)?\/?(?<depName>.*?)\"",
+        "tag:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Scans for generic version-major.minor.patch docker image updates (homeassistant)",
+      "customType": "regex",
+      "fileMatch": ["^*./?values.ya?ml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion:\\s?\"(?<registryUrl>\\w+\.io)?\/?(?<depName>.*?)\"",
+        "tag:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^(?<compatibility>.*?)-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Scans for generic vmajor.minor.patch docker image updates (atlantis)",
+      "customType": "regex",
+      "fileMatch": ["^*./?values.ya?ml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion:\\s?\"(?<registryUrl>\\w+\.io)?\/?(?<depName>.*?)\"",
+        "tag:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Scans for generic version string 'major.minor.patch.build-something' docker image updates (radarr|sonarr|prowlarr)",
+      "customType": "regex",
+      "fileMatch": ["^*./?values.ya?ml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion:\\s?\"(?<registryUrl>\\w+\.io)?\/?(?<depName>.*?)\"",
+        "tag:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^(?<major>\\d+)(\\.(?<minor>\\d+))(\\.(?<patch>\\d+))(\\.(?<build>\\d+))-.*$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Scans for generic version string 'vmajor.minor.build-something' docker image updates (bazarr)",
+      "customType": "regex",
+      "fileMatch": ["^*./?values.ya?ml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion:\\s?\"(?<registryUrl>\\w+\.io)?\/?(?<depName>.*?)\"",
+        "tag:\\s+(?<currentValue>.+)@(?<currentDigest>.+)"
+      ],
+      "versioningTemplate": "regex:^(?<compatibility>.*?)-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Scans for generic version string 'vmajor.minor-something' docker image updates (nzbget)",
+      "customType": "regex",
+      "fileMatch": ["^*./?values.ya?ml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion:\\s?\"(?<registryUrl>\\w+\.io)?\/?(?<depName>.*?)\"",
+        "tag:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^v(?<major>\\d+)(\\.(?<minor>\\d+))-.*$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Use-case for scrytped 'vmajor.minor.build-something' docker image updates (scrypted)",
+      "customType": "regex",
+      "fileMatch": ["^*./?values.ya?ml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion:\\s?\"(?<registryUrl>\\w+\.io)?\/?(?<depName>.*?)\"",
+        "scrypted_force_update:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^v(?<major>\\d+)(\\.(?<minor>\\d+))(\\.(?<patch>\\d+))-.*nvidia$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Use-case gitlab-ee version string 'major.minor.build-ee*' docker image updates (gitlab-ee)",
+      "customType": "regex",
+      "fileMatch": ["^*./?values.ya?ml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion:\\s?\"(?<registryUrl>\\w+\.io)?\/?(?<depName>.*?)\"",
+        "tag:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^(?<major>\\d+)(\\.(?<minor>\\d+))(\\.(?<build>\\d+))-ee.*$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Use-case plexpass version check as default tag is string 'plexpass'",
+      "customType": "regex",
+      "fileMatch": ["^plex\/values\\.yaml$"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion:\\s?\"(?<registryUrl>\\w+\.io)?\/?(?<depName>.*?)\"",
+        "plexpass_force_update:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<build>\\d+)\\.(?<patch>\\d+)-(?<revision>.*)$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Use-case immich version check to update all containers",
+      "customType": "regex",
+      "fileMatch": ["^immich/?values\\.yaml"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion: \"(?<registryUrl>.*?)\/(?<depName>.*?)\"\n",
+        "immich_force_update:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    },
+    {
+      "description": "Use-case to force qbittorrent updates when gluetun version is updated",
+      "customType": "regex",
+      "fileMatch": ["^qbittorrentvpn\/values\\.yaml$"],
+      "matchStringsStrategy": "combination",
+      "matchStrings": [
+        "repoversion_gluetun: \"(?<registryUrl>\/?)(?<depName>.*?)\"\n",
+        "gluetun_force_update:\\s+(?<currentValue>.+)"
+      ],
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      "datasourceTemplate": "docker",
+      "registryUrlTemplate": "{{#if registryUrl}}https://{{registryUrl}}{{else}}https://docker.io{{/if}}"
+    }
+  ]
+}
